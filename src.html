@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>edgeterm</title>
+<meta name="description" content="A crypto majors trading terminal that shows the math before and after every trade, and says so when there is no edge. Honest backtest, holdout, deflated Sharpe, paper trading 24/7.">
+<meta property="og:title" content="edgeterm: a trading terminal that says when there is no edge">
+<meta property="og:description" content="Trend-following on BTC, ETH, SOL and other majors: −13% worst fall vs −77% for BTC, but no edge on the 585 days the rule never saw. Every number, shown.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d0d0d'/%3E%3Cpath d='M6 22 L12 15 L17 18 L26 8' stroke='%233987e5' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface-1: #fcfcfb;
+  --surface-2: #f3f2ee;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #6f6e69;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --band: rgba(42, 120, 214, 0.07);
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --good: #006300;
+  --bad: #c42f2f;
+  --good-wash: rgba(12, 163, 12, 0.10);
+  --bad-wash: rgba(208, 59, 59, 0.10);
+  --focus: #2a78d6;
+  --radius: 12px;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface-1: #1a1a19;
+    --surface-2: #222220;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a9890;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --band: rgba(57, 135, 229, 0.10);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --good: #0ca30c;
+    --bad: #e66767;
+    --good-wash: rgba(12, 163, 12, 0.14);
+    --bad-wash: rgba(230, 103, 103, 0.14);
+    --focus: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface-1: #1a1a19;
+  --surface-2: #222220;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #9a9890;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10);
+  --band: rgba(57, 135, 229, 0.10);
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --good: #0ca30c;
+  --bad: #e66767;
+  --good-wash: rgba(12, 163, 12, 0.14);
+  --bad-wash: rgba(230, 103, 103, 0.14);
+  --focus: #3987e5;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font: 16px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--focus); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .wrap { padding: 0 32px; } }
+
+header.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 20px 0;
+}
+.brand { display: flex; align-items: center; gap: 10px; font: 600 17px/1 var(--mono); letter-spacing: -0.01em; color: var(--text-primary); text-decoration: none; }
+.brand svg { flex: none; }
+.theme-btn {
+  appearance: none; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+  border-radius: 999px; padding: 6px 12px; font: 13px/1 var(--sans); cursor: pointer;
+}
+.theme-btn:hover { color: var(--text-primary); }
+
+.hero { padding: 48px 0 28px; }
+.eyebrow { font: 500 13px/1.4 var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 14px; }
+h1 { font-size: clamp(32px, 6vw, 54px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 18px; font-weight: 700; max-width: 16ch; }
+.lede { font-size: clamp(17px, 2.2vw, 20px); color: var(--text-secondary); max-width: 62ch; margin: 0; }
+
+.verdict {
+  margin: 32px 0 0; padding: 20px 22px; border-radius: var(--radius);
+  background: var(--surface-1); border: 1px solid var(--border);
+  display: grid; gap: 10px;
+}
+.verdict p { margin: 0; }
+.verdict .label { font: 600 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.verdict strong { color: var(--text-primary); }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 28px 0 0; }
+@media (min-width: 860px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 16px 14px; min-width: 0; }
+.tile .k { font-size: 13px; color: var(--text-secondary); line-height: 1.35; }
+.tile .v { font: 600 clamp(24px, 4vw, 32px)/1.15 var(--mono); letter-spacing: -0.02em; margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 13px; color: var(--text-muted); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: 0; }
+
+section.block { padding: 56px 0 0; }
+h2 { font-size: clamp(22px, 3vw, 28px); letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 8px; }
+.sub { color: var(--text-secondary); margin: 0 0 20px; max-width: 68ch; }
+
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 16px 14px; }
+@media (min-width: 720px) { .card { padding: 22px 22px 16px; } }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 10px; }
+.card-title { font-weight: 600; font-size: 15px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; }
+.legend .line { width: 16px; height: 2px; border-radius: 1px; margin-right: 6px; }
+.legend .band { width: 14px; height: 10px; margin-right: 6px; background: var(--band); border: 1px dashed var(--axis); border-radius: 2px; }
+
+.chart { position: relative; width: 100%; touch-action: pan-y; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--text-muted); font: 11px var(--sans); font-variant-numeric: tabular-nums; }
+.chart .gridline { stroke: var(--grid); stroke-width: 1; }
+.chart .baseline { stroke: var(--axis); stroke-width: 1; }
+.chart .endlabel { font-weight: 600; fill: var(--text-primary); font-size: 12px; }
+.chart .bandlabel { fill: var(--text-secondary); font-size: 11px; }
+.tip {
+  position: absolute; pointer-events: none; z-index: 2; min-width: 168px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12.5px; line-height: 1.5; color: var(--text-primary);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.12); opacity: 0; transition: opacity .08s;
+}
+.tip.on { opacity: 1; }
+.tip .d { color: var(--text-muted); font-size: 12px; margin-bottom: 2px; }
+.tip .row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.tip .row b { font: 600 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+
+details.tableview { margin-top: 10px; font-size: 13px; }
+details.tableview summary { cursor: pointer; color: var(--text-secondary); width: max-content; }
+.tablewrap { overflow-x: auto; margin-top: 10px; max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+th:first-child, td:first-child { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; color: var(--text-secondary); }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--mono); }
+.pos { color: var(--good); }
+.neg { color: var(--bad); }
+
+.grid2 { display: grid; gap: 12px; }
+@media (min-width: 860px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+
+.windows { display: grid; gap: 12px; }
+@media (min-width: 720px) { .windows { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.win { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.win .when { font: 500 12px/1.4 var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.win h3 { margin: 4px 0 12px; font-size: 16px; }
+.win .pair { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 14px; color: var(--text-secondary); }
+.win .pair b { font: 600 14px var(--mono); color: var(--text-primary); text-align: right; font-variant-numeric: tabular-nums; }
+.win .note { margin: 12px 0 0; font-size: 13px; color: var(--text-muted); }
+.tag { display: table; font: 600 11px/1 var(--mono); padding: 4px 7px; border-radius: 999px; margin: 8px 0 0; letter-spacing: 0.02em; }
+.tag.unseen { background: var(--band); color: var(--focus); }
+.tag.seen { background: var(--surface-2); color: var(--text-muted); }
+
+.checks { display: grid; gap: 12px; }
+@media (min-width: 720px) { .checks { grid-template-columns: 1fr 1fr; } }
+.check { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.check .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.check .name { font-weight: 600; font-size: 15px; }
+.check .val { font: 600 15px var(--mono); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.check p { margin: 8px 0 0; font-size: 14px; color: var(--text-secondary); }
+.status { display: inline-flex; align-items: center; gap: 5px; font: 600 12px/1 var(--sans); padding: 4px 8px; border-radius: 999px; margin-top: 10px; }
+.status.ok { background: var(--good-wash); color: var(--good); }
+.status.ko { background: var(--bad-wash); color: var(--bad); }
+
+.features { display: grid; gap: 12px; }
+@media (min-width: 720px) { .features { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.feature { padding: 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-1); }
+.feature h3 { margin: 0 0 6px; font-size: 15px; }
+.feature p { margin: 0; font-size: 14px; color: var(--text-secondary); }
+
+.facts { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.facts li { padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface-1); font-size: 14.5px; color: var(--text-secondary); }
+.facts li b { color: var(--text-primary); font-family: var(--mono); font-weight: 600; }
+
+footer { padding: 64px 0 40px; color: var(--text-muted); font-size: 13px; }
+footer p { margin: 0 0 8px; max-width: 72ch; }
+footer .rule { height: 1px; background: var(--border); margin-bottom: 20px; }
+code { font: 0.92em var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { .tip { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#" aria-label="edgeterm home">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0d0d0d"/><path d="M6 22 L12 15 L17 18 L26 8" stroke="#3987e5" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      edgeterm
+    </a>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Switch colour theme">Theme: auto</button>
+  </header>
+
+  <main>
+    <section class="hero">
+      <p class="eyebrow">Crypto majors · trend + carry · paper trading 24/7</p>
+      <h1>A trading terminal that says when there is no edge.</h1>
+      <p class="lede">edgeterm trades liquid crypto majors (BTC, ETH, SOL and 8 others) with signals that are pure mathematics: past prices and funding rates, nothing else. It shows the math before and after every trade, and it tests itself on years its rule has never seen.</p>
+
+      <div class="verdict" role="note">
+        <span class="label">The honest result</span>
+        <p>From 2018 to 2026 the trend strategy grew money <strong>×<span data-k="trendX"></span></strong> while simply holding BTC grew it <strong>×<span data-k="btcX"></span></strong>. Its worst fall was <strong>−13 %</strong> against <strong>−77 %</strong>.</p>
+        <p>On the <strong>585 days</strong> after the strategy was published, which it never saw, it made <strong>−0.2 % a year</strong>. It cuts crashes; it does not beat holding on returns, and nothing here proves an edge out of sample.</p>
+      </div>
+
+      <div class="tiles">
+        <div class="tile"><div class="k"><span class="swatch" style="background:var(--series-1)"></span>Trend strategy, per year</div><div class="v">+12.4 %</div><div class="s">2018–2026, after costs</div></div>
+        <div class="tile"><div class="k"><span class="swatch" style="background:var(--series-2)"></span>Holding BTC, per year</div><div class="v">+36.4 %</div><div class="s">same period</div></div>
+        <div class="tile"><div class="k">Worst fall, trend vs BTC</div><div class="v">−13 %</div><div class="s">BTC: −77 %</div></div>
+        <div class="tile"><div class="k">Unseen days since March 2025</div><div class="v">−0.2 %</div><div class="s">per year · 90 % range −8 % to +8 %</div></div>
+      </div>
+    </section>
+
+    <section class="block" id="growth">
+      <h2>What €1 became</h2>
+      <p class="sub">Weekly value of €1 put in each approach on 17 August 2018, after trading costs. Log scale, so equal heights mean equal percentage moves. The shaded zone is the holdout: days after the strategy's paper was written.</p>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Growth of €1, 2018–2026</div>
+          <div class="legend">
+            <span><i class="line" style="background:var(--series-1)"></i>Trend strategy</span>
+            <span><i class="line" style="background:var(--series-2)"></i>Holding BTC</span>
+            <span><i class="band"></i>Unseen (holdout)</span>
+          </div>
+        </div>
+        <div class="chart" id="chartGrowth"></div>
+        <details class="tableview"><summary>Show as a table</summary><div class="tablewrap" id="tableGrowth"></div></details>
+      </div>
+    </section>
+
+    <section class="block" id="drawdown">
+      <h2>What it is for: the falls</h2>
+      <p class="sub">How far each approach sat below its own previous peak. This is the trade-off in one picture: the trend strategy steps aside in crashes and gives up most of the rallies in exchange. Points are weekly, so the deepest daily falls (−13 % and −77 %) sit slightly below what is drawn.</p>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Distance below previous peak</div>
+          <div class="legend">
+            <span><i class="line" style="background:var(--series-1)"></i>Trend strategy</span>
+            <span><i class="line" style="background:var(--series-2)"></i>Holding BTC</span>
+          </div>
+        </div>
+        <div class="chart" id="chartDD"></div>
+        <details class="tableview"><summary>Show as a table</summary><div class="tablewrap" id="tableDD"></div></details>
+      </div>
+    </section>
+
+    <section class="block" id="years">
+      <h2>Year by year</h2>
+      <p class="sub">Calendar-year returns. The trend strategy loses less in bad years (2018, 2022) and wins much less in great ones. 2026 runs to 25 October.</p>
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Return per calendar year</div>
+          <div class="legend">
+            <span><i class="line" style="background:var(--series-1);height:10px;width:10px;border-radius:3px"></i>Trend strategy</span>
+            <span><i class="line" style="background:var(--series-2);height:10px;width:10px;border-radius:3px"></i>Holding BTC</span>
+          </div>
+        </div>
+        <div class="chart" id="chartYears"></div>
+        <details class="tableview"><summary>Show as a table</summary><div class="tablewrap" id="tableYears"></div></details>
+      </div>
+    </section>
+
+    <section class="block" id="unseen">
+      <h2>Years the rule never saw</h2>
+      <p class="sub">The strategy comes from a 2025 paper (Zarattini, Pagani &amp; Barbon) built on 2015–2025 data. edgeterm runs the same rule on old Bitstamp BTC prices from before that sample, and on everything after it. The two unseen windows disagree.</p>
+      <div class="windows">
+        <div class="win">
+          <div class="when">Aug 2012 → Dec 2014 <span class="tag unseen">unseen</span></div>
+          <h3>Before the paper, BTC</h3>
+          <div class="pair"><span>Trend, per year</span><b class="pos">+110 %</b><span>Holding, per year</span><b class="pos">+280 %</b><span>Trend worst fall</span><b>−17 %</b><span>Holding worst fall</span><b>−73 %</b></div>
+          <p class="note">182 trades, +11 R each on average. The 2013 bubble and the 2014 crash: a perfect market for trend-following.</p>
+        </div>
+        <div class="win">
+          <div class="when">Jan 2015 → Mar 2025 <span class="tag seen">the paper's years</span></div>
+          <h3>The paper's own sample, BTC</h3>
+          <div class="pair"><span>Trend, per year</span><b class="pos">+29 %</b><span>Holding, per year</span><b class="pos">+73 %</b><span>Trend worst fall</span><b>−20 %</b><span>Holding worst fall</span><b>−83 %</b></div>
+          <p class="note">Good numbers, but these are the years the rule was designed on, so they prove little.</p>
+        </div>
+        <div class="win">
+          <div class="when">Mar 2025 → Oct 2026 <span class="tag unseen">unseen</span></div>
+          <h3>After the paper, 11 coins</h3>
+          <div class="pair"><span>Trend, per year</span><b class="neg">−0.2 %</b><span>Holding BTC, per year</span><b class="neg">−4.9 %</b><span>Trend worst fall</span><b>−10 %</b><span>Holding BTC worst fall</span><b>−53 %</b></div>
+          <p class="note">Edge per trade went from +0.97 R to −0.03 R. A sideways market slowly bleeds a trend rule.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="checks">
+      <h2>Is it luck? The overfitting checks</h2>
+      <p class="sub">Backtests flatter whoever runs them. edgeterm counts every variant it tried and runs the standard tests against itself, using <a href="https://github.com/sacha9214/backtest-autopsy">backtest-autopsy</a>.</p>
+      <div class="checks">
+        <div class="check">
+          <div class="top"><span class="name">Deflated Sharpe ratio</span><span class="val">0.998</span></div>
+          <p>Could luck alone explain the result, given that 11 variants were tried? Above 0.95 says no. It passes, but only on the years the rule was designed on.</p>
+          <span class="status ok">✓ Passes, in sample only</span>
+        </div>
+        <div class="check">
+          <div class="top"><span class="name">Probability of backtest overfitting</span><span class="val">0.36</span></div>
+          <p>How often the best variant in one half of history lands in the bottom half of the other. Pure noise sits around 0.5, so 0.36 is only mildly reassuring.</p>
+          <span class="status ok">✓ Below 0.5</span>
+        </div>
+        <div class="check">
+          <div class="top"><span class="name">Walk-forward selection</span><span class="val">0.79 vs 1.17</span></div>
+          <p>Every 6 months, switching to the look-back that did best over the last 2 years did worse (Sharpe 0.79) than simply keeping all nine (1.17). Choosing adds nothing.</p>
+          <span class="status ko">✕ Picking the best does worse</span>
+        </div>
+        <div class="check">
+          <div class="top"><span class="name">Edge per trade</span><span class="val">+0.97 R → −0.03 R</span></div>
+          <p>Average trade result in units of the risk taken. About one unit of risk per trade before March 2025; roughly zero on the unseen days since.</p>
+          <span class="status ko">✕ No edge out of sample</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="money">
+      <h2>In euros, after costs and tax</h2>
+      <p class="sub">What the numbers mean for a real French saver, compared with the tax-free Livret A.</p>
+      <ul class="facts">
+        <li>On <b>€5,000</b>, the trend strategy made <b>+€618</b> a year over 2018–2026 (<b>+€424</b> after the 31.4 % flat tax), and <b>−€12</b> a year on the unseen days. The Livret A paid <b>€85</b>, tax-free.</li>
+        <li>Doubling or tripling every trading cost takes the yearly return from <b>+12.4 %</b> to <b>+11.2 %</b> and <b>+10.0 %</b>. Costs are not what breaks it.</li>
+        <li>If swaps from crypto to stablecoins become taxable (a 2027 bill, still pending), the yearly return falls to <b>+8.3 %</b>.</li>
+        <li>Funding carry (long spot, short perpetual) earned <b>+0.7 %</b> on BTC, <b>+0.3 %</b> on ETH and <b>−1.8 %</b> on SOL over the last year, all below the Livret A's 1.7 %. It stays in paper mode.</li>
+      </ul>
+    </section>
+
+    <section class="block" id="how">
+      <h2>How it works</h2>
+      <p class="sub">A Python terminal and a local web dashboard over one engine.</p>
+      <div class="features">
+        <div class="feature"><h3>Pure-math signals</h3><p>A volatility-scaled ensemble of nine Donchian breakouts, long or flat, spot only. No news, no macro, no sentiment, no LLM in the loop.</p></div>
+        <div class="feature"><h3>Honest backtest</h3><p>Each coin's measured cost (fee, half-spread, depth impact), funding at its real timestamps, a true holdout, walk-forward, bootstrap confidence intervals, and a test that changing future prices never changes a past decision.</p></div>
+        <div class="feature"><h3>Paper first, live behind locks</h3><p>The paper loop runs 24/7 against live order books. Live trading needs an explicit switch, 28 days of paper journal, a key the exchange reports as trade-only, and a −5 % daily kill-switch.</p></div>
+        <div class="feature"><h3>Every number explained</h3><p>Today's signals with the calculation behind each one, a chart that replays every buy and sell on any coin (BTC back to 2012), and a trade calculator with break-even after costs and tax.</p></div>
+        <div class="feature"><h3>Built for where it runs</h3><p>Data from Binance's public history; execution on OKX EU, USDC pairs, because Binance stopped serving French residents in July 2026.</p></div>
+        <div class="feature"><h3>Tested</h3><p>50 tests cover the math, costs, the tax ledger, look-ahead, funding timestamps, the paper loop, the kill-switch and the live locks.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="rule"></div>
+    <p>Numbers come from edgeterm's own research report, generated <span data-k="generated"></span> on data up to <span data-k="dataEnd"></span>. Past results, simulated or not, say nothing certain about the future.</p>
+    <p><strong>Not investment advice.</strong> edgeterm shows the math; it never says what to buy. The source code is private for now.</p>
+    <p>Built by <a href="https://github.com/sacha9214">sacha9214</a>.</p>
+  </footer>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+
+  /* ---------- theme toggle (per-viewer convenience, storage optional) ---------- */
+  var root = document.documentElement, btn = document.getElementById("themeBtn");
+  var modes = ["auto", "light", "dark"], mode = "auto";
+  try { mode = localStorage.getItem("edgeterm-theme") || "auto"; } catch (e) {}
+  function applyTheme() {
+    if (mode === "auto") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", mode);
+    btn.textContent = "Theme: " + mode;
+  }
+  btn.addEventListener("click", function () {
+    mode = modes[(modes.indexOf(mode) + 1) % 3];
+    try { localStorage.setItem("edgeterm-theme", mode); } catch (e) {}
+    applyTheme(); drawAll();
+  });
+  applyTheme();
+
+  /* ---------- helpers ---------- */
+  var NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function css(v) { return getComputedStyle(root).getPropertyValue(v).trim(); }
+  var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  function fmtDate(s) { var p = s.split("-"); return +p[2] + " " + MONTHS[+p[1] - 1] + " " + p[0]; }
+  function pct(v, d) {
+    if (v == null) return "–";
+    var s = (v * 100).toFixed(d == null ? 1 : d);
+    if (+s === 0) s = (0).toFixed(d == null ? 1 : d);
+    return (v > 0 && +s !== 0 ? "+" : "") + s.replace("-", "−") + " %";
+  }
+  function mult(v) { return "×" + (v >= 10 ? v.toFixed(1) : v.toFixed(2)); }
+  function signClass(v) { return v > 0 ? "pos" : v < 0 ? "neg" : ""; }
+  function dateMs(s) { return Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); }
+
+  var E = D.equity, N = E.dates.length;
+  var T = E.dates.map(dateMs);
+  function drawdown(arr) { var peak = -Infinity; return arr.map(function (v) { peak = Math.max(peak, v); return v / peak - 1; }); }
+  var DD = { trend: drawdown(E.trend), btc: drawdown(E.btc) };
+
+  document.querySelectorAll("[data-k]").forEach(function (n) {
+    var k = n.getAttribute("data-k");
+    n.textContent = k === "trendX" ? E.trend[N - 1].toFixed(2) : k === "btcX" ? E.btc[N - 1].toFixed(1)
+      : k === "generated" ? fmtDate(D.generated) : k === "dataEnd" ? fmtDate(D.data_end) : "";
+  });
+
+  /* ---------- tooltip ---------- */
+  function makeTip(box) {
+    var t = document.createElement("div"); t.className = "tip"; t.setAttribute("role", "status"); box.appendChild(t); return t;
+  }
+  function placeTip(tip, box, x, y) {
+    var bw = box.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+    var left = x + 14; if (left + tw > bw) left = x - tw - 14; if (left < 0) left = Math.max(0, Math.min(bw - tw, x - tw / 2));
+    var top = Math.max(0, y - th - 10);
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function tipRows(date, rows) {
+    return '<div class="d">' + date + "</div>" + rows.map(function (r) {
+      return '<div class="row"><span><i class="swatch" style="background:' + r.c + '"></i>' + r.n + "</span><b>" + r.v + "</b></div>";
+    }).join("");
+  }
+
+  /* ---------- time-series line chart ---------- */
+  function lineChart(id, opts) {
+    var box = document.getElementById(id);
+    box.innerHTML = "";
+    var W = Math.max(300, box.clientWidth), narrow = W < 560;
+    var H = narrow ? 260 : 340;
+    var m = { t: 12, r: narrow ? 64 : 92, b: 28, l: narrow ? 40 : 48 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": opts.aria });
+    box.appendChild(svg);
+    var x0 = T[0], x1 = T[N - 1];
+    function X(t) { return m.l + (t - x0) / (x1 - x0) * iw; }
+    var Y = opts.yScale(ih, m.t);
+
+    // holdout band
+    if (opts.band) {
+      var hb = X(dateMs(D.holdout_start));
+      el("rect", { x: hb, y: m.t, width: m.l + iw - hb, height: ih, fill: css("--band") }, svg);
+      el("line", { x1: hb, x2: hb, y1: m.t, y2: m.t + ih, stroke: css("--axis"), "stroke-dasharray": "3 3" }, svg);
+      var bl = el("text", { x: hb + 6, y: m.t + 14, class: "bandlabel" }, svg); bl.textContent = narrow ? "Unseen" : "Unseen days";
+    }
+    // grid + y labels
+    opts.ticks.forEach(function (tk) {
+      var y = Y(tk.v);
+      el("line", { x1: m.l, x2: m.l + iw, y1: y, y2: y, class: tk.base ? "baseline" : "gridline" }, svg);
+      var t = el("text", { x: m.l - 8, y: y + 4, "text-anchor": "end" }, svg); t.textContent = tk.l;
+    });
+    // x labels (years)
+    for (var yr = 2019; yr <= 2026; yr++) {
+      if (narrow && yr % 2 === 0) continue;
+      var xx = X(Date.UTC(yr, 0, 1));
+      var t2 = el("text", { x: xx, y: H - 8, "text-anchor": "middle" }, svg); t2.textContent = yr;
+      el("line", { x1: xx, x2: xx, y1: m.t + ih, y2: m.t + ih + 4, stroke: css("--axis") }, svg);
+    }
+    // lines
+    var surface = css("--surface-1");
+    opts.series.forEach(function (s) {
+      var d = "";
+      for (var i = 0; i < N; i++) d += (i ? "L" : "M") + X(T[i]).toFixed(1) + " " + Y(s.v[i]).toFixed(1);
+      el("path", { d: d, fill: "none", stroke: css(s.c), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    });
+    // end labels with simple collision avoidance
+    var ends = opts.series.map(function (s) { return { y: Y(s.v[N - 1]), s: s }; }).sort(function (a, b) { return a.y - b.y; });
+    for (var k = 1; k < ends.length; k++) if (ends[k].y - ends[k - 1].y < 16) ends[k].y = ends[k - 1].y + 16;
+    ends.forEach(function (e) {
+      el("circle", { cx: X(T[N - 1]), cy: Y(e.s.v[N - 1]), r: 4, fill: css(e.s.c), stroke: surface, "stroke-width": 2 }, svg);
+      var t = el("text", { x: X(T[N - 1]) + 9, y: e.y + 4, class: "endlabel" }, svg); t.textContent = e.s.end;
+    });
+    // crosshair
+    var cross = el("line", { y1: m.t, y2: m.t + ih, stroke: css("--text-muted"), "stroke-width": 1, opacity: 0 }, svg);
+    var dots = opts.series.map(function (s) { return el("circle", { r: 4.5, fill: css(s.c), stroke: surface, "stroke-width": 2, opacity: 0 }, svg); });
+    var hit = el("rect", { x: m.l, y: m.t, width: iw, height: ih, fill: "transparent", style: "cursor:crosshair" }, svg);
+    var tip = makeTip(box);
+    function move(evt) {
+      var r = svg.getBoundingClientRect(), sx = W / r.width;
+      var px = ((evt.touches ? evt.touches[0].clientX : evt.clientX) - r.left) * sx;
+      var t = x0 + (px - m.l) / iw * (x1 - x0), lo = 0, hi = N - 1;
+      while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (T[mid] < t) lo = mid; else hi = mid; }
+      var i = Math.abs(T[lo] - t) < Math.abs(T[hi] - t) ? lo : hi;
+      var cx = X(T[i]);
+      cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", 0.5);
+      opts.series.forEach(function (s, j) { dots[j].setAttribute("cx", cx); dots[j].setAttribute("cy", Y(s.v[i])); dots[j].setAttribute("opacity", 1); });
+      tip.innerHTML = tipRows("Week of " + fmtDate(E.dates[i]), opts.series.map(function (s) { return { n: s.n, v: s.f(s.v[i]), c: css(s.c) }; }));
+      var ymin = Math.min.apply(null, opts.series.map(function (s) { return Y(s.v[i]); }));
+      tip.classList.add("on"); placeTip(tip, box, cx / sx, ymin / sx);
+    }
+    function leave() { tip.classList.remove("on"); cross.setAttribute("opacity", 0); dots.forEach(function (d) { d.setAttribute("opacity", 0); }); }
+    hit.addEventListener("mousemove", move); hit.addEventListener("mouseleave", leave);
+    hit.addEventListener("touchstart", move, { passive: true }); hit.addEventListener("touchmove", move, { passive: true }); hit.addEventListener("touchend", leave);
+  }
+
+  function logScale(lo, hi) {
+    var a = Math.log(lo), b = Math.log(hi);
+    return function (ih, top) { return function (v) { return top + ih - (Math.log(v) - a) / (b - a) * ih; }; };
+  }
+  function linScale(lo, hi) {
+    return function (ih, top) { return function (v) { return top + ih - (v - lo) / (hi - lo) * ih; }; };
+  }
+
+  /* ---------- grouped bar chart (years) ---------- */
+  function barChart(id) {
+    var box = document.getElementById(id);
+    box.innerHTML = "";
+    var Yd = D.years, n = Yd.years.length;
+    var W = Math.max(300, box.clientWidth), narrow = W < 560;
+    var H = narrow ? 260 : 320;
+    var m = { t: 14, r: 8, b: 28, l: narrow ? 46 : 52 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var lo = -1, hi = 3.25;
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, role: "img", "aria-label": "Calendar-year returns of the trend strategy and of holding BTC, 2018 to 2026" });
+    box.appendChild(svg);
+    function Y(v) { return m.t + ih - (v - lo) / (hi - lo) * ih; }
+    [-1, -0.5, 0, 1, 2, 3].forEach(function (v) {
+      el("line", { x1: m.l, x2: m.l + iw, y1: Y(v), y2: Y(v), class: v === 0 ? "baseline" : "gridline" }, svg);
+      var t = el("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }, svg); t.textContent = (v > 0 ? "+" : "") + (v * 100).toFixed(0).replace("-", "−") + "%";
+    });
+    var slot = iw / n, gap = 2, bw = Math.min(26, (slot * 0.62 - gap) / 2);
+    var tip = makeTip(box), series = [{ k: "trend", n: "Trend strategy", c: "--series-1" }, { k: "btc", n: "Holding BTC", c: "--series-2" }];
+    var hl = el("rect", { y: m.t, width: slot, height: ih, fill: css("--band"), opacity: 0 }, svg);
+    svg.insertBefore(hl, svg.firstChild);
+    var hits = [];
+    Yd.years.forEach(function (yr, i) {
+      var cx = m.l + slot * (i + 0.5);
+      var lab = el("text", { x: cx, y: H - 8, "text-anchor": "middle" }, svg); lab.textContent = narrow ? "’" + yr.slice(2) : yr;
+      series.forEach(function (s, j) {
+        var v = Yd[s.k][i]; if (v == null) return;
+        var x = cx - bw - gap / 2 + j * (bw + gap);
+        var y0 = Y(0), y1 = Y(v), h = Math.abs(y1 - y0), r = Math.min(4, h, bw / 2);
+        var top = Math.min(y0, y1), d;
+        if (v >= 0) d = "M" + x + " " + y0 + "V" + (top + r) + "Q" + x + " " + top + " " + (x + r) + " " + top + "H" + (x + bw - r) + "Q" + (x + bw) + " " + top + " " + (x + bw) + " " + (top + r) + "V" + y0 + "Z";
+        else d = "M" + x + " " + y0 + "V" + (y1 - r) + "Q" + x + " " + y1 + " " + (x + r) + " " + y1 + "H" + (x + bw - r) + "Q" + (x + bw) + " " + y1 + " " + (x + bw) + " " + (y1 - r) + "V" + y0 + "Z";
+        el("path", { d: d, fill: css(s.c) }, svg);
+      });
+      hits.push(function () {
+        var hit = el("rect", { x: cx - slot / 2, y: m.t, width: slot, height: ih, fill: "transparent" }, svg);
+        function show() {
+          tip.innerHTML = tipRows(yr === "2026" ? "2026 (to 25 Oct)" : yr, series.map(function (s) { return { n: s.n, v: pct(Yd[s.k][i], 1), c: css(s.c) }; }));
+          tip.classList.add("on");
+          var r = svg.getBoundingClientRect(), sc = r.width / W;
+          placeTip(tip, box, cx * sc, Math.min(Y(Yd.trend[i]), Y(Yd.btc[i]), Y(0)) * sc);
+          hl.setAttribute("x", cx - slot / 2); hl.setAttribute("opacity", 1);
+        }
+        function hide() { tip.classList.remove("on"); hl.setAttribute("opacity", 0); }
+        hit.addEventListener("mouseenter", show); hit.addEventListener("mouseleave", hide);
+        hit.addEventListener("touchstart", show, { passive: true });
+      });
+    });
+    hits.forEach(function (f) { f(); });
+  }
+
+  /* ---------- tables ---------- */
+  function table(id, head, rows) {
+    var h = "<table><thead><tr>" + head.map(function (c) { return "<th scope=\"col\">" + c + "</th>"; }).join("") + "</tr></thead><tbody>";
+    rows.forEach(function (r) { h += "<tr>" + r.map(function (c, i) { return i ? '<td class="num ' + (c.cls || "") + '">' + c.t + "</td>" : "<td>" + c + "</td>"; }).join("") + "</tr>"; });
+    document.getElementById(id).innerHTML = h + "</tbody></table>";
+  }
+  var monthly = [];
+  for (var i = 0; i < N; i += 4) monthly.push(i);
+  if (monthly[monthly.length - 1] !== N - 1) monthly.push(N - 1);
+  table("tableGrowth", ["Week of", "Trend strategy", "Holding BTC"], monthly.map(function (i) {
+    return [fmtDate(E.dates[i]), { t: mult(E.trend[i]) }, { t: mult(E.btc[i]) }];
+  }));
+  table("tableDD", ["Week of", "Trend strategy", "Holding BTC"], monthly.map(function (i) {
+    return [fmtDate(E.dates[i]), { t: pct(DD.trend[i], 0), cls: signClass(DD.trend[i]) }, { t: pct(DD.btc[i], 0), cls: signClass(DD.btc[i]) }];
+  }));
+  table("tableYears", ["Year", "Trend strategy", "Holding BTC"], D.years.years.map(function (y, i) {
+    return [y === "2026" ? "2026 (to 25 Oct)" : y, { t: pct(D.years.trend[i]), cls: signClass(D.years.trend[i]) }, { t: pct(D.years.btc[i]), cls: signClass(D.years.btc[i]) }];
+  }));
+
+  /* ---------- draw ---------- */
+  function drawAll() {
+    lineChart("chartGrowth", {
+      aria: "Growth of 1 euro from August 2018 to October 2026: trend strategy reaches 2.60, holding BTC reaches 12.7",
+      band: true,
+      yScale: logScale(0.35, 30),
+      ticks: [{ v: 0.5, l: "×0.5" }, { v: 1, l: "×1", base: true }, { v: 2, l: "×2" }, { v: 5, l: "×5" }, { v: 10, l: "×10" }, { v: 20, l: "×20" }],
+      series: [
+        { n: "Trend strategy", v: E.trend, c: "--series-1", f: mult, end: "Trend " + mult(E.trend[N - 1]) },
+        { n: "Holding BTC", v: E.btc, c: "--series-2", f: mult, end: "BTC " + mult(E.btc[N - 1]) }
+      ]
+    });
+    lineChart("chartDD", {
+      aria: "Drawdowns: the trend strategy never fell more than 13 percent below its peak, holding BTC fell up to 77 percent",
+      band: false,
+      yScale: linScale(-0.85, 0.02),
+      ticks: [{ v: 0, l: "0%", base: true }, { v: -0.2, l: "−20%" }, { v: -0.4, l: "−40%" }, { v: -0.6, l: "−60%" }, { v: -0.8, l: "−80%" }],
+      series: [
+        { n: "Trend strategy", v: DD.trend, c: "--series-1", f: function (v) { return pct(v, 0); }, end: "Trend" },
+        { n: "Holding BTC", v: DD.btc, c: "--series-2", f: function (v) { return pct(v, 0); }, end: "BTC" }
+      ]
+    });
+    barChart("chartYears");
+  }
+  drawAll();
+  var lastW = 0, raf = 0;
+  window.addEventListener("resize", function () {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(function () { var w = document.getElementById("chartGrowth").clientWidth; if (w !== lastW) { lastW = w; drawAll(); } });
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia("(prefers-color-scheme: dark)");
+    (mq.addEventListener ? mq.addEventListener.bind(mq, "change") : mq.addListener.bind(mq))(function () { if (mode === "auto") drawAll(); });
+  }
+})();
+</script>
+</body>
+</html>
